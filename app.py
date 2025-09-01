@@ -5,7 +5,7 @@ import google.generativeai as genai
 st.set_page_config(page_title="Text → HTML Formatter (Gemini)", page_icon="📝", layout="wide")
 
 st.title("📝 Text → HTML Formatter (Gemini API)")
-st.write("Paste any text below and it will be reformatted into clean HTML with headings, subheadings, bullets, and numbered points.")
+st.write("Paste any text below and it will be reformatted into clean HTML with proper spacing and indentation.")
 
 # --- Directly set Gemini API key ---
 API_KEY = "AIzaSyC60uyhgxLvsGUZMO3mrAj120oybFF3KnY"
@@ -25,21 +25,25 @@ if st.button("Format Text"):
             with st.spinner("Formatting your text..."):
                 response = model.generate_content(
                     f"""
-                    You are a strict text-to-HTML formatter. 
-                    Your task is ONLY to wrap the given text in HTML tags for structure. 
+                    You are a strict text-to-HTML formatter.
+                    Your task is ONLY to wrap the given text in valid, well-structured HTML tags.
                     
-                    ❌ Do NOT add, change, or invent any content. 
-                    ❌ Do NOT summarize or expand. 
+                    ❌ Do NOT add, change, or invent any content.
+                    ❌ Do NOT summarize or expand.
                     
-                    ✅ Only organize the provided text with:
-                        - <h3> for main headings
-                        - <h4> for subheadings
-                        - <ol> for numbered lists
-                        - <ul> for bullet points
-                        - <p> for normal text
-
-                    Return ONLY valid HTML.
-
+                    ✅ Formatting rules:
+                        - Entire formatted content must appear only inside a <body> tag.
+                        - Use <h3> for main headings
+                        - Use <h4> for subheadings
+                        - Use <h5> for smaller subheadings
+                        - Use <p> for paragraphs
+                        - Use <ul> with <li> for bullet points
+                        - Use <ol> with <li> for numbered lists
+                        - Maintain proper spacing and indentation
+                        - No inline CSS or external styling
+                    
+                    Return ONLY valid HTML (starting with <body> and ending with </body>).
+                    
                     Text to format:
                     {raw_text}
                     """
