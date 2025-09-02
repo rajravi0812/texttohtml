@@ -21,7 +21,8 @@ def get_gemini_response(prompt, text_to_format):
     Sends the user's text and formatting rules to the Gemini API and returns the response.
     It also cleans the output to remove extra text.
     """
-    model = genai.Generativeai.GenerativeModel('gemini-1.5-flash')
+    # CORRECTED LINE: Removed the extra 'ai' from 'Generativeai'
+    model = genai.GenerativeModel('gemini-1.5-flash')
     
     # Refined and more explicit prompt
     full_prompt = (
@@ -54,9 +55,8 @@ def get_gemini_response(prompt, text_to_format):
             cleaned_text = cleaned_text[:-len("```")].strip()
             
         # The model might sometimes add a brief introductory sentence. Remove it.
-        # This is a bit of a heuristic, but it often works.
         first_line = cleaned_text.split('\n')[0].strip()
-        if not first_line.startswith(("<h", "<p", "<ul", "<ol")):
+        if not first_line.startswith(("<h", "<p", "<ul", "<ol", "<li")): # Added <li> to the check
             # If the first line doesn't look like an HTML tag, assume it's intro text and remove it
             cleaned_text = '\n'.join(cleaned_text.split('\n')[1:]).strip()
             
