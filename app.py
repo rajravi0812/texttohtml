@@ -12,8 +12,6 @@ st.set_page_config(
 
 # Set up the Gemini API key from environment variables or direct assignment
 # For security, it's best to use st.secrets or environment variables.
-# For local use, a .env file is good.
-# Example using direct assignment for demonstration, but not recommended for production.
 # Replace with your actual key or st.secrets
 genai.configure(api_key="AIzaSyC60uyhgxLvsGUZMO3mrAj120oybFF3KnY") 
 
@@ -21,15 +19,49 @@ genai.configure(api_key="AIzaSyC60uyhgxLvsGUZMO3mrAj120oybFF3KnY")
 def get_gemini_response(prompt, text_to_format):
     """
     Sends the user's text and formatting rules to the Gemini API and returns the response.
+    It also cleans the output to remove extra text.
     """
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.Generativeai.GenerativeModel('gemini-1.5-flash')
+    
+    # Refined and more explicit prompt
     full_prompt = (
-        f"{prompt}\n\n"
-        f"Text to format:\n{text_to_format}"
+        "I need you to convert the following raw text into a well-structured HTML code snippet. "
+        "Strictly adhere to these rules:\n\n"
+        "1. Convert all text into a well-structured HTML format with proper spacing and indentation.\n"
+        "2. Use only <h2>, <h3>, and <h4> tags for headings and subheadings.\n"
+        "3. Use <p> tags for paragraphs.\n"
+        "4. Use <ul> and <ol> with <li> for lists where necessary.\n"
+        "5. DO NOT ADD OR REMOVE ANY WORDS FROM THE ORIGINAL TEXT.\n"
+        "6. DO NOT ADD ANY INTRODUCTORY OR EXPLANATORY TEXT. ONLY PROVIDE THE HTML CODE.\n"
+        "7. No inline CSS or external styling should be used.\n"
+        "8. The entire formatted content should appear only inside the <body> tag. "
+        "Do not include <html>, <head>, or <body> tags in your response. "
+        "Just provide the content that would go inside the <body> tag.\n\n"
+        "Text to format:\n\n"
+        f"{text_to_format}"
     )
+    
     try:
         response = model.generate_content(full_prompt)
-        return response.text
+        
+        # Post-processing to clean the output
+        cleaned_text = response.text.strip()
+        
+        # Remove markdown code fences and any trailing explanation
+        if cleaned_text.startswith("```html"):
+            cleaned_text = cleaned_text[len("```html"):].strip()
+        if cleaned_text.endswith("```"):
+            cleaned_text = cleaned_text[:-len("```")].strip()
+            
+        # The model might sometimes add a brief introductory sentence. Remove it.
+        # This is a bit of a heuristic, but it often works.
+        first_line = cleaned_text.split('\n')[0].strip()
+        if not first_line.startswith(("<h", "<p", "<ul", "<ol")):
+            # If the first line doesn't look like an HTML tag, assume it's intro text and remove it
+            cleaned_text = '\n'.join(cleaned_text.split('\n')[1:]).strip()
+            
+        return cleaned_text
+    
     except Exception as e:
         st.error(f"An error occurred: {e}")
         return None
@@ -48,24 +80,12 @@ text_input = st.text_area(
     placeholder="Type or paste the text you want to convert to HTML...",
 )
 
-# Define the rules for the API
-rules = """
-Convert the following text into a well-structured HTML format with proper spacing and indentation.
-Use only <h2>, <h3>, and 4 tags for headings and subheadings.
-Use <p> tags for paragraphs.
-Use <ul> and <ol> with <li> for lists where necessary.
-Do not add or remove any words from the text.
-No inline CSS or external styling should be used.
-The entire formatted content should appear only inside the <body> tag.
-Ensure the output is clean HTML code, not a prose explanation of the code.
-"""
-
 # Button to trigger the conversion
 if st.button("Convert to HTML", type="primary"):
     if text_input:
         with st.spinner("Converting..."):
             # Get the HTML response from the Gemini API
-            html_output = get_gemini_response(rules, text_input)
+            html_output = get_gemini_response("", text_input)
 
             if html_output:
                 st.subheader("Generated HTML:")
@@ -76,7 +96,6 @@ if st.button("Convert to HTML", type="primary"):
                 st.subheader("Rendered HTML Preview:")
                 
                 # Create a simple HTML page to display the output
-                # Inject a CSS style to force a light theme for the body.
                 html_page = f"""
                 <!DOCTYPE html>
                 <html>
@@ -84,8 +103,9 @@ if st.button("Convert to HTML", type="primary"):
                 <title>HTML Preview</title>
                 <style>
                     body {{
-                        background-color: #f0f2f6; /* A light, soft gray background */
-                        color: #31333f; /* A dark text color for readability */
+                        background-color: #f0f2f6;
+                        color: #31333f;
+                        font-family: Arial, sans-serif;
                     }}
                 </style>
                 </head>
@@ -96,7 +116,6 @@ if st.button("Convert to HTML", type="primary"):
                 """
                 
                 # Use st.components.v1.html to render the HTML content
-                # This ensures the preview is always readable regardless of the Streamlit theme
                 st.components.v1.html(html_page, height=500, scrolling=True)
             else:
                 st.warning("Could not generate HTML. Please try again.")
@@ -104,7 +123,6 @@ if st.button("Convert to HTML", type="primary"):
         st.warning("Please enter some text to convert.")
 
 # Optional: Add a section for user to input their own API key
-# This is a good practice for public apps.
 with st.expander("About the API Key"):
     st.info("The application requires a Gemini API key. For this example, replace 'YOUR_API_KEY' in the code. For production, consider using `st.secrets` for security.")
     st.markdown("[Get your Gemini API key](https://aistudio.google.com/app/apikey)")
