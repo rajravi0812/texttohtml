@@ -1,5 +1,5 @@
 import streamlit as st
-from google import genai
+import google.genai as genai
 
 # -------------------------
 # 🔑 API Key Initialization
@@ -9,25 +9,29 @@ client = genai.Client(api_key="AIzaSyC60uyhgxLvsGUZMO3mrAj120oybFF3KnY")
 # -------------------------
 # 🎙️ Streamlit UI
 # -------------------------
-st.title("🎧 MP3 → Transcript Converter (Gemini API)")
+st.title("🎧 Audio → Transcript Converter (Gemini API)")
 
-uploaded_file = st.file_uploader("Upload an MP3 file", type=["mp3"])
+uploaded_file = st.file_uploader("Upload an audio file", type=["mp3", "m4a"])
 
 if uploaded_file is not None:
-    st.audio(uploaded_file, format="audio/mp3")
+    # Streamlit can preview mp3 but not always m4a, so just try:
+    try:
+        st.audio(uploaded_file)
+    except Exception:
+        st.warning("Preview not available for this format, but transcription will still work ✅")
 
     if st.button("Transcribe Audio"):
         # Save uploaded file locally
-        with open("temp.mp3", "wb") as f:
+        with open("temp." + uploaded_file.type.split("/")[-1], "wb") as f:
             f.write(uploaded_file.getbuffer())
 
         with st.spinner("Transcribing... please wait ⏳"):
             # Upload to Gemini
-            myfile = client.files.upload(file="temp.mp3")
+            myfile = client.files.upload(file=f.name)
 
             # Ask Gemini to transcribe
             response = client.models.generate_content(
-                model="gemini-2.5-flash",  # or "gemini-2.5-pro" for better accuracy
+                model="gemini-2.5-flash",  # or "gemini-2.5-pro"
                 contents=["Please transcribe this audio:", myfile]
             )
 
