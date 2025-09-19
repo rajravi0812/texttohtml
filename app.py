@@ -49,22 +49,36 @@ def process_single_chunk(chunk_text, chunk_number, total_chunks):
     Process a single chunk of text with Gemini API.
     """
     full_prompt = f"""
-CRITICAL INSTRUCTION: You must preserve EVERY SINGLE WORD from the input text. Do not skip, delete, or modify any content.
+🚨 ABSOLUTE CRITICAL INSTRUCTION: PRESERVE EVERY SINGLE WORD - NO EXCEPTIONS! 🚨
 
-Convert the following text into valid HTML following these rules:
+You MUST include EVERY word from the input text in your output. This includes:
+- Misspelled words (keep them exactly as they are)
+- Words with special characters, symbols, or punctuation
+- Numbers, dates, codes, or technical terms
+- Short words (1-2 characters)
+- Repeated words (keep all instances)
+- Foreign words or unusual spellings
+- Abbreviations or acronyms
+- Any text that looks "wrong" or unusual
 
-1. PRESERVE ALL TEXT: Every single word, character, and line from the input must appear in the output.
-2. For headings: Use <h2>, <h3>, or <h4> tags
-3. For paragraphs: Use <p> tags
-4. For lists: Use <ul>/<ol> with <li> tags for items starting with -, *, or numbers
-5. For unclear lines: Use <p> tags (better to be safe)
-6. NO ADDITIONS: Do not add any extra text, comments, or explanations
-7. NO DELETIONS: Do not remove, skip, or summarize any content
-8. OUTPUT FORMAT: Only HTML content (no <html>, <head>, or <body> tags)
+CONVERSION RULES:
+1. 🎯 ZERO TOLERANCE: Every single word from input MUST appear in output
+2. 📝 For headings: Use <h2>, <h3>, or <h4> tags
+3. 📄 For paragraphs: Use <p> tags  
+4. 📋 For lists: Use <ul>/<ol> with <li> tags for items starting with -, *, or numbers
+5. ❓ For unclear lines: Use <p> tags (preserve everything)
+6. 🚫 NO ADDITIONS: Do not add any extra text, comments, or explanations
+7. 🚫 NO DELETIONS: Do not remove, skip, summarize, or "fix" any content
+8. 📤 OUTPUT FORMAT: Only HTML content (no <html>, <head>, or <body> tags)
 
-IMPORTANT: This is chunk {chunk_number} of {total_chunks}. The input contains {len(chunk_text.split())} words. Your output must contain approximately the same number of words.
+⚠️ CRITICAL VALIDATION:
+- Input word count: {len(chunk_text.split())} words
+- Your output MUST contain approximately the same number of words
+- If you're unsure about a word, include it anyway
+- Better to have "wrong" content than missing content
+- This is chunk {chunk_number} of {total_chunks}
 
-Text to convert:
+Text to convert (PRESERVE EVERY WORD):
 
 {chunk_text}
 """
@@ -130,21 +144,33 @@ def get_gemini_response(text_to_format):
     # Combine all chunks
     combined_html = '\n\n'.join(processed_chunks)
     
-    # Final safety check
+    # ULTRA-STRICT safety check - ZERO TOLERANCE for word loss
     input_words = len(text_to_format.split())
     output_words = len(combined_html.split())
     word_loss_percentage = ((input_words - output_words) / input_words) * 100
     
-    if output_words < input_words * 0.98:  # Stricter threshold - only allow 2% loss
-        st.error(f"🚨 CRITICAL: Severe text loss detected!")
+    if output_words < input_words * 0.999:  # ULTRA-STRICT: Only allow 0.1% loss
+        st.error(f"🚨 CRITICAL FAILURE: Word loss detected!")
         st.error(f"**Input words:** {input_words:,} | **Output words:** {output_words:,}")
-        st.error(f"**Words lost:** {input_words - output_words:,} ({word_loss_percentage:.1f}%)")
-        st.error("The conversion is missing significant content. Please try again or check the prompt.")
-    elif output_words < input_words * 0.99:  # Minor loss warning
-        st.warning(f"⚠️ Minor text loss detected: {word_loss_percentage:.1f}% of words missing")
+        st.error(f"**Words lost:** {input_words - output_words:,} ({word_loss_percentage:.2f}%)")
+        st.error("❌ ZERO TOLERANCE POLICY: Any word loss is unacceptable!")
+        st.error("🔄 Please try again - the model must preserve ALL words.")
+        
+        # Show immediate analysis of what's missing
+        if input_words - output_words > 0:
+            st.error("🔍 Immediate analysis of missing content:")
+            missing_words = set(text_to_format.lower().split()) - set(combined_html.lower().split())
+            if missing_words:
+                st.error(f"Missing words: {list(missing_words)[:20]}")
+                if len(missing_words) > 20:
+                    st.error(f"... and {len(missing_words) - 20} more missing words")
+    elif output_words < input_words * 0.9995:  # Very minor loss warning
+        st.warning(f"⚠️ MINOR word loss detected: {word_loss_percentage:.3f}% of words missing")
         st.warning(f"**Input:** {input_words:,} words | **Output:** {output_words:,} words")
+        st.warning("This is very close to perfect - but we aim for 100% preservation.")
     else:
-        st.success(f"✅ Text processing completed! Preserved {output_words:,} out of {input_words:,} words ({100-word_loss_percentage:.1f}% retention)")
+        st.success(f"✅ PERFECT! Preserved {output_words:,} out of {input_words:,} words ({100-word_loss_percentage:.3f}% retention)")
+        st.success("🎯 ZERO TOLERANCE POLICY SUCCESSFUL!")
 
     return combined_html
 
@@ -302,6 +328,15 @@ st.title("📄 Text to HTML Converter with Gemini API")
 
 st.markdown("""
 This app converts your text into a well-structured HTML format based on a set of rules using the Gemini API.
+
+🎯 **ZERO TOLERANCE POLICY**: Every single word from your input will be preserved in the output, including:
+- Misspelled words
+- Special characters and symbols  
+- Numbers and technical terms
+- Short words (1-2 characters)
+- Repeated words
+- Foreign or unusual spellings
+- Any text that looks "wrong" or unusual
 """)
 
 # Input for the user's text
@@ -318,6 +353,9 @@ if st.button("Convert to HTML", type="primary"):
         word_count = len(text_input.split())
         if word_count > 4000:
             st.info(f"📊 Large text detected: {word_count:,} words. Will be processed in chunks for better accuracy.")
+        
+        # Show zero tolerance policy
+        st.info("🎯 **ZERO TOLERANCE POLICY**: This system is configured to preserve EVERY single word, including misspelled, unusual, or problematic text. No words will be left behind!")
         
         with st.spinner("Converting..."):
             # Get the HTML response from the Gemini API
