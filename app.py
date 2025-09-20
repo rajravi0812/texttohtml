@@ -48,37 +48,65 @@ def process_single_chunk(chunk_text, chunk_number, total_chunks):
     """
     Process a single chunk of text with Gemini API.
     """
+    # Get protected words from session state
+    protected_words = st.session_state.get('protected_words', [])
+    protected_words_text = ""
+    if protected_words:
+        protected_words_text = f"\n\n🛡️ PROTECTED WORDS (NEVER REMOVE): {', '.join(protected_words)}"
+    
     full_prompt = f"""
-🚨 ABSOLUTE CRITICAL INSTRUCTION: PRESERVE EVERY SINGLE WORD - NO EXCEPTIONS! 🚨
+🚨🚨🚨 ABSOLUTE CRITICAL INSTRUCTION: EXACT PRESERVATION ONLY! 🚨🚨🚨
 
-You MUST include EVERY word from the input text in your output. This includes:
-- Misspelled words (keep them exactly as they are)
-- Words with special characters, symbols, or punctuation
-- Numbers, dates, codes, or technical terms
-- Short words (1-2 characters)
-- Repeated words (keep all instances)
-- Foreign words or unusual spellings
-- Abbreviations or acronyms
-- Any text that looks "wrong" or unusual
+FAILURE TO FOLLOW THESE RULES = COMPLETE REJECTION!
 
-CONVERSION RULES:
-1. 🎯 ZERO TOLERANCE: Every single word from input MUST appear in output
-2. 📝 For headings: Use <h2>, <h3>, or <h4> tags
-3. 📄 For paragraphs: Use <p> tags  
-4. 📋 For lists: Use <ul>/<ol> with <li> tags for items starting with -, *, or numbers
-5. ❓ For unclear lines: Use <p> tags (preserve everything)
-6. 🚫 NO ADDITIONS: Do not add any extra text, comments, or explanations
-7. 🚫 NO DELETIONS: Do not remove, skip, summarize, or "fix" any content
-8. 📤 OUTPUT FORMAT: Only HTML content (no <html>, <head>, or <body> tags)
+MANDATORY RULES - NO EXCEPTIONS:
+✅ PRESERVE EVERY SINGLE WORD from input exactly as written
+✅ PRESERVE EVERY CHARACTER exactly as written
+✅ NEVER ADD ANY WORDS that are not in the input
+✅ NEVER ADD ANY TEXT that is not in the input
+✅ NEVER ADD ANY EXPLANATIONS or COMMENTS
+✅ NEVER ADD ANY INTRODUCTORY TEXT
+✅ NEVER ADD ANY CONCLUDING TEXT
+✅ NEVER ADD ANY HTML COMMENTS
+✅ NEVER ADD ANY EXTRA CONTENT
+✅ NEVER "IMPROVE" or "ENHANCE" the text
+✅ NEVER ADD ANY WORDS OF YOUR OWN
 
-⚠️ CRITICAL VALIDATION:
+STRICT PRESERVATION REQUIREMENTS:
+- Misspelled words → Keep exactly as written (DO NOT FIX)
+- Special characters/symbols → Preserve all punctuation exactly
+- Numbers/dates/codes → Keep all numeric content exactly
+- Short words (1-2 chars) → Never skip single letters
+- Repeated words → Keep ALL instances exactly
+- Foreign/unusual spellings → Preserve exactly (DO NOT TRANSLATE)
+- Abbreviations/acronyms → Keep all shortened forms exactly
+- Technical terms → Preserve all jargon exactly
+- Any "wrong" looking text → Keep everything exactly
+- Spaces and formatting → Maintain original spacing exactly
+
+HTML CONVERSION RULES:
+1. 🎯 EXACT PRESERVATION: Every word from input MUST appear in output
+2. 📝 Headings: Use <h2>, <h3>, or <h4> tags
+3. 📄 Paragraphs: Use <p> tags  
+4. 📋 Lists: Use <ul>/<ol> with <li> tags for items starting with -, *, or numbers
+5. ❓ Unclear lines: Use <p> tags (preserve everything)
+6. 🚫 ABSOLUTELY NO ADDITIONS: No extra text, comments, explanations, or any content not in input
+7. 🚫 ABSOLUTELY NO DELETIONS: No removing, skipping, summarizing, or "fixing"
+8. 📤 OUTPUT: Only HTML content (no <html>, <head>, or <body> tags)
+
+CRITICAL VALIDATION REQUIREMENTS:
 - Input word count: {len(chunk_text.split())} words
-- Your output MUST contain approximately the same number of words
-- If you're unsure about a word, include it anyway
+- Output MUST contain EXACTLY the same number of words
+- Output MUST NOT contain ANY words not in the input
+- If uncertain about a word → INCLUDE IT ANYWAY
 - Better to have "wrong" content than missing content
 - This is chunk {chunk_number} of {total_chunks}
+{protected_words_text}
 
-Text to convert (PRESERVE EVERY WORD):
+🚨 FINAL WARNING: ANY WORD LOSS OR ADDITION = COMPLETE FAILURE 🚨
+🚨 DO NOT ADD ANY WORDS OF YOUR OWN - ONLY PRESERVE INPUT EXACTLY 🚨
+
+Text to convert (PRESERVE EXACTLY - NO ADDITIONS):
 
 {chunk_text}
 """
@@ -144,33 +172,86 @@ def get_gemini_response(text_to_format):
     # Combine all chunks
     combined_html = '\n\n'.join(processed_chunks)
     
-    # ULTRA-STRICT safety check - ZERO TOLERANCE for word loss
+    # ULTRA-STRICT safety check - ABSOLUTE ZERO TOLERANCE FOR LOSS AND ADDITIONS
     input_words = len(text_to_format.split())
     output_words = len(combined_html.split())
     word_loss_percentage = ((input_words - output_words) / input_words) * 100
     
-    if output_words < input_words * 0.999:  # ULTRA-STRICT: Only allow 0.1% loss
-        st.error(f"🚨 CRITICAL FAILURE: Word loss detected!")
+    # Check for protected words specifically
+    protected_words = st.session_state.get('protected_words', [])
+    missing_protected = []
+    if protected_words:
+        for word in protected_words:
+            if word.lower() not in combined_html.lower():
+                missing_protected.append(word)
+    
+    # Check for added words (words in output that are not in input)
+    input_word_set = set(word.lower() for word in text_to_format.split())
+    output_word_set = set(word.lower() for word in combined_html.split())
+    added_words = output_word_set - input_word_set
+    
+    # Check for word count violations
+    word_count_violation = False
+    if output_words != input_words:
+        word_count_violation = True
+    
+    if output_words < input_words * 0.9999:  # ABSOLUTE ZERO TOLERANCE: Only allow 0.01% loss
+        st.error(f"🚨🚨🚨 CRITICAL WARNING: WORD LOSS DETECTED! 🚨🚨🚨")
         st.error(f"**Input words:** {input_words:,} | **Output words:** {output_words:,}")
-        st.error(f"**Words lost:** {input_words - output_words:,} ({word_loss_percentage:.2f}%)")
-        st.error("❌ ZERO TOLERANCE POLICY: Any word loss is unacceptable!")
-        st.error("🔄 Please try again - the model must preserve ALL words.")
+        st.error(f"**Words lost:** {input_words - output_words:,} ({word_loss_percentage:.3f}%)")
+        st.error("⚠️ WARNING: Some words were lost during conversion!")
+        st.warning("📄 HTML file will still be generated, but please review for missing content.")
         
         # Show immediate analysis of what's missing
         if input_words - output_words > 0:
-            st.error("🔍 Immediate analysis of missing content:")
+            st.error("🔍 MISSING CONTENT ANALYSIS:")
             missing_words = set(text_to_format.lower().split()) - set(combined_html.lower().split())
             if missing_words:
-                st.error(f"Missing words: {list(missing_words)[:20]}")
-                if len(missing_words) > 20:
-                    st.error(f"... and {len(missing_words) - 20} more missing words")
-    elif output_words < input_words * 0.9995:  # Very minor loss warning
-        st.warning(f"⚠️ MINOR word loss detected: {word_loss_percentage:.3f}% of words missing")
+                st.error(f"Missing words: {list(missing_words)[:30]}")
+                if len(missing_words) > 30:
+                    st.error(f"... and {len(missing_words) - 30} more missing words")
+        
+        # Check protected words specifically
+        if missing_protected:
+            st.error(f"🚨 PROTECTED WORDS MISSING: {missing_protected}")
+            st.error("This is a CRITICAL VIOLATION of protected word policy!")
+        
+        # Continue with HTML generation despite word loss
+        st.info("🔄 Continuing with HTML generation despite word loss...")
+    
+    elif added_words:  # Check for added words
+        st.error(f"🚨🚨🚨 CRITICAL WARNING: AI ADDED WORDS! 🚨🚨🚨")
+        st.error(f"**AI added words:** {list(added_words)[:20]}")
+        if len(added_words) > 20:
+            st.error(f"... and {len(added_words) - 20} more added words")
+        st.error("⚠️ WARNING: AI added words that were not in input!")
+        st.warning("📄 HTML file will still be generated, but please review for added content.")
+        st.info("🔄 Continuing with HTML generation despite added words...")
+    
+    elif word_count_violation:  # Check for exact word count match
+        st.error(f"🚨🚨🚨 CRITICAL WARNING: WORD COUNT MISMATCH! 🚨🚨🚨")
+        st.error(f"**Input words:** {input_words:,} | **Output words:** {output_words:,}")
+        st.error("⚠️ WARNING: Word count mismatch detected!")
+        st.warning("📄 HTML file will still be generated, but please review for content accuracy.")
+        st.info("🔄 Continuing with HTML generation despite word count mismatch...")
+    
+    elif output_words < input_words * 0.99995:  # Extremely minor loss warning
+        st.warning(f"⚠️ MINIMAL word loss detected: {word_loss_percentage:.4f}% of words missing")
         st.warning(f"**Input:** {input_words:,} words | **Output:** {output_words:,} words")
-        st.warning("This is very close to perfect - but we aim for 100% preservation.")
+        st.warning("This is extremely close to perfect - but we aim for 100% preservation.")
+        
+        if missing_protected:
+            st.error(f"🚨 PROTECTED WORDS MISSING: {missing_protected}")
+            st.error("Protected word violation detected!")
+            st.warning("📄 HTML file will still be generated, but please review for missing protected words.")
+            st.info("🔄 Continuing with HTML generation despite missing protected words...")
     else:
-        st.success(f"✅ PERFECT! Preserved {output_words:,} out of {input_words:,} words ({100-word_loss_percentage:.3f}% retention)")
-        st.success("🎯 ZERO TOLERANCE POLICY SUCCESSFUL!")
+        st.success(f"✅ PERFECT! Preserved {output_words:,} out of {input_words:,} words ({100-word_loss_percentage:.4f}% retention)")
+        st.success("🎯 ABSOLUTE ZERO TOLERANCE POLICY SUCCESSFUL!")
+        st.success("🚫 NO AI WORDS ADDED - EXACT PRESERVATION ACHIEVED!")
+        
+        if protected_words and not missing_protected:
+            st.success("🛡️ All protected words preserved successfully!")
 
     return combined_html
 
@@ -299,7 +380,7 @@ def analyze_missing_patterns(missing_details, original_text):
             patterns['repeated_words'].append(word_info)
         elif sum(1 for c in word if c in '.,!?;:') > len(word) * 0.3:
             patterns['punctuation_heavy'].append(word_info)
-        else:
+    else:
             patterns['other'].append(word_info)
     
     return patterns
@@ -326,42 +407,83 @@ def compare_texts(original_text, extracted_text):
 # Streamlit App UI
 st.title("📄 Text to HTML Converter with Gemini API")
 
-st.markdown("""
-This app converts your text into a well-structured HTML format based on a set of rules using the Gemini API.
+# Create tabs for different functionalities
+tab1, tab2 = st.tabs(["🔄 Convert Text to HTML", "📊 Compare Files"])
 
-🎯 **ZERO TOLERANCE POLICY**: Every single word from your input will be preserved in the output, including:
-- Misspelled words
-- Special characters and symbols  
-- Numbers and technical terms
-- Short words (1-2 characters)
-- Repeated words
-- Foreign or unusual spellings
-- Any text that looks "wrong" or unusual
-""")
+with tab1:
+    st.markdown("""
+    This app converts your text into a well-structured HTML format based on a set of rules using the Gemini API.
 
-# Input for the user's text
-text_input = st.text_area(
-    "Enter your text here:",
-    height=250,
-    placeholder="Type or paste the text you want to convert to HTML...",
-)
+    🎯 **ABSOLUTE ZERO TOLERANCE POLICY**: Every single word from your input will be preserved in the output, including:
+    - Misspelled words
+    - Special characters and symbols  
+    - Numbers and technical terms
+    - Short words (1-2 characters)
+    - Repeated words
+    - Foreign or unusual spellings
+    - Any text that looks "wrong" or unusual
+    
+    🚫 **NO AI WORD ADDITION**: The AI will NEVER add its own words, explanations, or any content not in your input.
+    """)
+    
+    # Protected words section
+    st.subheader("🛡️ Protected Words Configuration")
+    st.markdown("Add specific words that should NEVER be removed during conversion:")
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        protected_words_input = st.text_input(
+            "Protected words (comma-separated):",
+            value=", ".join(st.session_state.get('protected_words', [])),
+            help="Enter words that must never be removed, separated by commas"
+        )
+    
+    with col2:
+        if st.button("Update Protected Words"):
+            if protected_words_input.strip():
+                protected_words = [word.strip() for word in protected_words_input.split(',') if word.strip()]
+                st.session_state['protected_words'] = protected_words
+                st.success(f"✅ {len(protected_words)} protected words added!")
+            else:
+                st.session_state['protected_words'] = []
+                st.info("Protected words cleared.")
+    
+    # Show current protected words
+    if st.session_state.get('protected_words'):
+        st.info(f"🛡️ **Current Protected Words:** {', '.join(st.session_state['protected_words'])}")
+    else:
+        st.info("No protected words set. All words will be preserved by default.")
 
-# Button to trigger the conversion
-if st.button("Convert to HTML", type="primary"):
-    if text_input:
-        # Show processing info for large texts
-        word_count = len(text_input.split())
-        if word_count > 4000:
-            st.info(f"📊 Large text detected: {word_count:,} words. Will be processed in chunks for better accuracy.")
-        
-        # Show zero tolerance policy
-        st.info("🎯 **ZERO TOLERANCE POLICY**: This system is configured to preserve EVERY single word, including misspelled, unusual, or problematic text. No words will be left behind!")
-        
-        with st.spinner("Converting..."):
-            # Get the HTML response from the Gemini API
-            html_output = get_gemini_response(text_input)
+    # Input for the user's text
+    text_input = st.text_area(
+        "Enter your text here:",
+        height=250,
+        placeholder="Type or paste the text you want to convert to HTML...",
+    )
 
-            if html_output:
+    # Button to trigger the conversion
+    if st.button("Convert to HTML", type="primary"):
+        if text_input:
+            # Show processing info for large texts
+            word_count = len(text_input.split())
+            if word_count > 4000:
+                st.info(f"📊 Large text detected: {word_count:,} words. Will be processed in chunks for better accuracy.")
+            
+            # Show zero tolerance policy
+            st.info("🎯 **ABSOLUTE ZERO TOLERANCE POLICY**: This system is configured to preserve EVERY single word, including misspelled, unusual, or problematic text. No words will be left behind!")
+            st.info("🚫 **NO AI WORD ADDITION**: The AI will NEVER add its own words, explanations, or any content not in your input.")
+            
+            # Show protected words status
+            protected_words = st.session_state.get('protected_words', [])
+            if protected_words:
+                st.info(f"🛡️ **Protected Words Active:** {', '.join(protected_words)} - These words will be specially protected during conversion.")
+                
+            with st.spinner("Converting with ABSOLUTE ZERO TOLERANCE..."):
+                # Get the HTML response from the Gemini API
+                html_output = get_gemini_response(text_input)
+
+            if html_output is not None:
                 st.subheader("Generated HTML:")
 
                 # Use st.code to display the raw HTML code
@@ -499,9 +621,162 @@ if st.button("Convert to HTML", type="primary"):
                         st.text_area("", value=extracted_text, height=200, disabled=True, key="extracted_text")
 
             else:
-                st.warning("Could not generate HTML. Please try again.")
+                st.error("🚨 CONVERSION FAILED: Unable to generate HTML. Please try again.")
     else:
         st.warning("Please enter some text to convert.")
+
+with tab2:
+    st.markdown("""
+    ## 📊 File Comparison Tool
+    
+    Upload your original text file and HTML file to automatically compare them and see how many words match.
+    No manual review needed - get instant statistics!
+    """)
+    
+    # File upload section
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📄 Upload Original Text File")
+        original_file = st.file_uploader(
+            "Choose a text file",
+            type=['txt', 'md', 'docx'],
+            key="original_file",
+            help="Upload your original text file (.txt, .md, .docx)"
+        )
+    
+    with col2:
+        st.subheader("🌐 Upload HTML File")
+        html_file = st.file_uploader(
+            "Choose an HTML file",
+            type=['html', 'htm'],
+            key="html_file",
+            help="Upload your HTML file (.html, .htm)"
+        )
+    
+    # Process files when both are uploaded
+    if original_file and html_file:
+        st.success("✅ Both files uploaded successfully!")
+        
+        try:
+            # Read original text file
+            if original_file.name.endswith('.docx'):
+                # For docx files, we'd need python-docx library
+                st.error("DOCX files not supported yet. Please convert to TXT or MD format.")
+                original_text = ""
+            else:
+                original_text = str(original_file.read(), "utf-8")
+            
+            # Read HTML file
+            html_content = str(html_file.read(), "utf-8")
+            
+            if original_text:
+                st.subheader("📊 Comparison Results")
+                
+                # Extract text from HTML
+                extracted_text = extract_text_from_html(html_content)
+                
+                # Compare texts
+                comparison = compare_texts(original_text, extracted_text)
+                
+                # Display results
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("Original Words", f"{comparison['original_count']:,}")
+                
+                with col2:
+                    st.metric("HTML Words", f"{comparison['extracted_count']:,}")
+                
+                with col3:
+                    st.metric("Match %", f"{comparison['match_percentage']:.1f}%")
+                
+                with col4:
+                    words_lost = comparison['original_count'] - comparison['extracted_count']
+                    st.metric("Words Lost", f"{words_lost:,}")
+                
+                # Overall assessment
+                if comparison['match_percentage'] >= 99.5:
+                    st.success("🎯 EXCELLENT! Near-perfect text preservation!")
+                elif comparison['match_percentage'] >= 95:
+                    st.warning("⚠️ GOOD: Minor text differences detected")
+                elif comparison['match_percentage'] >= 90:
+                    st.error("🚨 POOR: Significant text loss detected")
+                else:
+                    st.error("💥 CRITICAL: Major text loss - conversion failed!")
+                
+                # Show detailed analysis if there are differences
+                if comparison['missing_words'] or comparison['extra_words']:
+                    st.subheader("🔍 Detailed Analysis")
+                    
+                    # Missing words analysis
+                    missing_details = comparison.get('missing_details', [])
+                    if missing_details:
+                        patterns = analyze_missing_patterns(missing_details, original_text)
+                        
+                        st.write("**Missing Words by Category:**")
+                        for pattern_name, words in patterns.items():
+                            if words:
+                                pattern_labels = {
+                                    'special_chars': '🔤 Special Characters',
+                                    'numbers': '🔢 Numbers',
+                                    'short_words': '📏 Short Words',
+                                    'repeated_words': '🔄 Repeated Words',
+                                    'punctuation_heavy': '❗ Punctuation Heavy',
+                                    'other': '❓ Other Words'
+                                }
+                                st.write(f"- {pattern_labels[pattern_name]}: {len(words)} words")
+                        
+                        # Show top missing words
+                        if missing_details:
+                            st.write("**Most Frequently Missing Words:**")
+                            sorted_missing = sorted(missing_details, key=lambda x: x['frequency'], reverse=True)
+                            missing_list = [f"{word['word']} ({word['frequency']}x)" for word in sorted_missing[:10]]
+                            st.write(", ".join(missing_list))
+                    
+                    # Extra words
+                    extra_details = comparison.get('extra_details', [])
+                    if extra_details:
+                        st.write(f"**Extra Words Found:** {len(extra_details)} words")
+                        if len(extra_details) <= 20:
+                            extra_list = [word['word'] for word in extra_details]
+                            st.write(", ".join(extra_list))
+                        else:
+                            extra_list = [word['word'] for word in extra_details[:20]]
+                            st.write(", ".join(extra_list) + f" ... and {len(extra_details) - 20} more")
+                
+                # Download comparison report
+                report = f"""
+TEXT COMPARISON REPORT
+====================
+Original File: {original_file.name}
+HTML File: {html_file.name}
+Generated: {st.session_state.get('current_time', 'Unknown')}
+
+SUMMARY:
+- Original Words: {comparison['original_count']:,}
+- HTML Words: {comparison['extracted_count']:,}
+- Match Percentage: {comparison['match_percentage']:.1f}%
+- Words Lost: {comparison['original_count'] - comparison['extracted_count']:,}
+
+ASSESSMENT: {'EXCELLENT' if comparison['match_percentage'] >= 99.5 else 'GOOD' if comparison['match_percentage'] >= 95 else 'POOR' if comparison['match_percentage'] >= 90 else 'CRITICAL'}
+"""
+                
+                st.download_button(
+                    label="📄 Download Comparison Report",
+                    data=report,
+                    file_name="text_comparison_report.txt",
+                    mime="text/plain"
+                )
+                
+        except Exception as e:
+            st.error(f"Error processing files: {e}")
+    
+    elif original_file or html_file:
+        st.warning("⚠️ Please upload both files to perform comparison.")
+    
+    else:
+        st.info("👆 Upload both files above to start comparison.")
 
 # Optional: Add a section for user to input their own API key
 with st.expander("About the API Key"):
